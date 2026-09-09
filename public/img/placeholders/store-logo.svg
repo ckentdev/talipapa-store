@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <rect width="200" height="200" rx="24" fill="#dcfce7"/>
+  <path d="M100 48c-8 0-14 6-16 14l-8 36h48l-8-36c-2-8-8-14-16-14Z" fill="#22c55e"/>
+  <path d="M64 98h72v58c0 8-6 14-14 14H78c-8 0-14-6-14-14V98Z" fill="#F97316"/>
+  <text x="100" y="178" text-anchor="middle" fill="#003D29" font-family="system-ui,sans-serif" font-size="14" font-weight="700">Store</text>
+</svg>

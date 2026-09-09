@@ -1,0 +1,48 @@
+import './bootstrap';
+import 'flowbite';
+import 'remixicon/fonts/remixicon.css';
+import L from 'leaflet';
+import { initEcho } from './echo';
+import { initGeolocation } from './geolocation';
+import { initPsgcDropdowns } from './psgc-dropdowns';
+import { initPushNotifications } from './push-notifications';
+import { initSoundAlerts } from './sound-alerts';
+import { initProductCarousels } from './product-carousel';
+import { initCategoryList } from './category-list';
+import { initVoiceSearch } from './voice-search';
+import { initVoiceAssistant } from './voice-assistant';
+import { initProductsSearch } from './products-search';
+import { initVocPlayground } from './voc-playground';
+import { initHeaderDropdowns, initNotificationBadge } from './header-dropdowns';
+import { initCartDropdown } from './cart-dropdown';
+import { initAddToCart } from './add-to-cart';
+import { initPasswordStrength } from './password-strength';
+import { initAlerts } from './alerts';
+import { initToast } from './toast';
+import { initConfirmModal } from './confirm-modal';
+import { initFileInputs } from './file-input';
+
+window.L = L;
+
+document.addEventListener('DOMContentLoaded', () => {
+    initEcho();
+    initGeolocation();
+    initPsgcDropdowns();
+    initPushNotifications();
+    initSoundAlerts();
+    initVoiceSearch();
+    initVoiceAssistant();
+    initProductsSearch();
+    initVocPlayground();
+    initCategoryList();
+    initProductCarousels();
+    initHeaderDropdowns();
+    initNotificationBadge();
+    initCartDropdown();
+    initToast();
+    initAlerts();
+    initPasswordStrength();
+    initAddToCart();
+    initConfirmModal();
+    initFileInputs();
+});

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Coins.ph">
+  <rect width="64" height="64" rx="14" fill="#F5B800"/>
+  <circle cx="32" cy="32" r="14" fill="#0057A8"/>
+  <path fill="#fff" d="M32 22c-5.5 0-10 4.5-10 10s4.5 10 10 10 10-4.5 10-10-4.5-10-10-10zm0 16.8c-3.8 0-6.8-3-6.8-6.8S28.2 25.2 32 25.2s6.8 3 6.8 6.8-3 6.8-6.8 6.8z"/>
+  <path fill="#F5B800" d="M29.2 30.8h1.6v6.4h-1.6zm4 0h1.6v6.4h-1.6z"/>
+</svg>
