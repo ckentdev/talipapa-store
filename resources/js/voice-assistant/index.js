@@ -7,7 +7,6 @@ import {
 import { openListeningModal, closeListeningModal, updateListeningModalStatus } from './listening';
 import { createVoiceRecorder } from './recorder';
 import { createVoicePanel } from './panel';
-import { speakText, stopSpeaking, preloadVoices } from './tts';
 import { voiceFilename } from '../voice-audio';
 
 let isProcessing = false;
@@ -87,10 +86,6 @@ async function processVoiceInput(blob, panel) {
         }, 1500);
     }
 
-    if (data.reply && document.body.dataset.soundEnabled === '1') {
-        speakText(data.reply, data.language);
-    }
-
     panel.setStatus('Tap the microphone to speak again.');
 }
 
@@ -125,7 +120,6 @@ async function runRecording(panel) {
 
     try {
         isProcessing = true;
-        stopSpeaking();
         panel.setStatus('Listening… speak now.');
         openListeningModal();
         updateListeningModalStatus('Listening… tap stop when done.');
@@ -183,7 +177,6 @@ export function initVoiceAssistant() {
         return;
     }
 
-    preloadVoices();
     initVoicePermissionModal();
 
     const panel = createVoicePanel(root);
@@ -204,7 +197,6 @@ export function initVoiceAssistant() {
     });
 
     root.querySelector('[data-voice-assistant-close]')?.addEventListener('click', () => {
-        stopSpeaking();
         panel.setOpen(false);
     });
 

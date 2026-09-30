@@ -12,10 +12,6 @@ return [
 
     'transcribe_fallback_model' => env('VOICE_ASSISTANT_TRANSCRIBE_FALLBACK', 'whisper-1'),
 
-    'tts_model' => env('VOICE_ASSISTANT_TTS_MODEL', 'tts-1'),
-
-    'tts_voice' => env('VOICE_ASSISTANT_TTS_VOICE', 'nova'),
-
     'nlp_model' => env('VOICE_ASSISTANT_NLP_MODEL', 'gpt-4o-mini'),
 
     'reply_max_tokens' => (int) env('VOICE_ASSISTANT_REPLY_MAX_TOKENS', 120),
