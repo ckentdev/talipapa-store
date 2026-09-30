@@ -12,6 +12,14 @@ return [
 
     'transcribe_fallback_model' => env('VOICE_ASSISTANT_TRANSCRIBE_FALLBACK', 'whisper-1'),
 
+    // ISO-639-1 Tagalog. Keeps Filipino and Bisaya in Latin letters instead of Chinese.
+    'transcribe_language' => env('VOICE_ASSISTANT_TRANSCRIBE_LANGUAGE', 'tl'),
+
+    'transcribe_prompt' => env(
+        'VOICE_ASSISTANT_TRANSCRIBE_PROMPT',
+        'Pilipinas. Filipino, Tagalog, Bisaya, English. Latin letters only. tuyo, toyo, suka, bugas, gatas, barato na tuyo, mantika, itlog, bulad, daing, soy sauce, rice, milk.',
+    ),
+
     'nlp_model' => env('VOICE_ASSISTANT_NLP_MODEL', 'gpt-4o-mini'),
 
     'reply_max_tokens' => (int) env('VOICE_ASSISTANT_REPLY_MAX_TOKENS', 120),

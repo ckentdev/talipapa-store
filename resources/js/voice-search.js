@@ -98,13 +98,7 @@ function initVoiceListeningModal() {
 }
 
 function resolveSpeechLanguage() {
-    const lang = (document.documentElement.lang || 'en-US').trim();
-
-    if (! lang || lang === 'en') {
-        return 'en-US';
-    }
-
-    return lang.includes('-') ? lang : `${lang}-${lang.toUpperCase()}`;
+    return 'fil-PH';
 }
 
 async function waitForAudioHandoff(ms = 150) {

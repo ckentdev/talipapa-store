@@ -21,17 +21,27 @@ class TranscriptionService
         $model = config('voice-assistant.transcribe_model');
         $tempPath = $this->prepareAudioPath($audio);
 
+        $fallback = (string) config('voice-assistant.transcribe_fallback_model');
+
         try {
-            return $this->requestTranscription($client, $model, $tempPath);
+            $text = $this->requestTranscription($client, $model, $tempPath);
+
+            if ($this->containsHanScript($text) && $model !== $fallback) {
+                Log::warning('Voice transcript used Chinese script, retrying for Filipino or Bisaya', [
+                    'model' => $model,
+                ]);
+
+                $text = $this->requestTranscription($client, $fallback, $tempPath);
+            }
+
+            return $this->withoutHanScript($text);
         } catch (\Throwable $e) {
             Log::warning('Voice transcribe primary model failed, trying fallback', [
                 'model' => $model,
                 'error' => $e->getMessage(),
             ]);
 
-            $fallback = config('voice-assistant.transcribe_fallback_model');
-
-            return $this->requestTranscription($client, $fallback, $tempPath);
+            return $this->withoutHanScript($this->requestTranscription($client, $fallback, $tempPath));
         } finally {
             @unlink($tempPath);
         }
@@ -73,8 +83,33 @@ class TranscriptionService
             'model' => $model,
             'file' => fopen($path, 'r'),
             'response_format' => 'json',
+            ...$this->hints(),
         ]);
 
         return trim((string) ($response->text ?? ''));
+    }
+
+    /**
+     * @return array{language: string, prompt: string}
+     */
+    public function hints(): array
+    {
+        return [
+            'language' => (string) config('voice-assistant.transcribe_language', 'tl'),
+            'prompt' => (string) config('voice-assistant.transcribe_prompt'),
+        ];
+    }
+
+    public function containsHanScript(string $text): bool
+    {
+        return (bool) preg_match('/\p{Han}/u', $text);
+    }
+
+    public function withoutHanScript(string $text): string
+    {
+        $stripped = preg_replace('/\p{Han}+/u', ' ', $text) ?? $text;
+        $stripped = preg_replace('/\s+/u', ' ', $stripped) ?? $stripped;
+
+        return trim($stripped);
     }
 }
