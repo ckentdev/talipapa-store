@@ -42,7 +42,11 @@ class QueryAttributeExtractor
         $dietary = array_values(array_unique($dietary));
         $exclusions = array_values(array_unique($exclusions));
 
-        $keywords = $this->buildKeywords($original, $product, $brand, $dietary, $exclusions);
+        $keywords = $this->alignKeywordsToProduct(
+            $this->buildKeywords($original, $product, $brand, $dietary, $exclusions),
+            $product,
+            $original,
+        );
 
         return $this->toNlpArray(
             originalText: $original,
@@ -88,13 +92,15 @@ class QueryAttributeExtractor
             $exclusions = $fallback['exclusions'];
         }
 
-        $product = $this->nullableString($parsed['product'] ?? null) ?? $fallback['product'];
+        $product = $this->canonicalizeProduct($this->nullableString($parsed['product'] ?? null) ?? $fallback['product']);
         $brand = $this->nullableString($parsed['brand'] ?? null) ?? $fallback['brand'];
         $priceIntent = $this->nullableString($parsed['price_intent'] ?? null) ?? $fallback['price_intent'];
 
         if (in_array($priceIntent, ['cheap', 'premium'], true) === false) {
             $priceIntent = $fallback['price_intent'];
         }
+
+        $keywords = $this->alignKeywordsToProduct($keywords, $product, $text);
 
         return $this->toNlpArray(
             originalText: (string) ($parsed['original_text'] ?? $text),
@@ -290,11 +296,72 @@ class QueryAttributeExtractor
 
         foreach ($phrases as $phrase) {
             if ($this->containsPhrase($lower, $phrase)) {
-                return $canonicals[$phrase];
+                return $this->canonicalizeProduct((string) $canonicals[$phrase]);
             }
         }
 
         return null;
+    }
+
+    private function canonicalizeProduct(?string $product): ?string
+    {
+        if ($product === null) {
+            return null;
+        }
+
+        $product = Str::lower(trim($product));
+
+        if ($product === '') {
+            return null;
+        }
+
+        $mapped = config('voc.canonical_products.'.$product);
+
+        return is_string($mapped) && $mapped !== '' ? Str::lower($mapped) : $product;
+    }
+
+    /**
+     * Keep the English catalog name and drop local aliases, plus English
+     * products the shopper did not actually say.
+     *
+     * @param  array<int, string>  $keywords
+     * @return array<int, string>
+     */
+    private function alignKeywordsToProduct(array $keywords, ?string $product, string $original): array
+    {
+        if ($product === null || $product === '') {
+            return $keywords;
+        }
+
+        $keywords[] = $product;
+        $original = Str::lower($original);
+        $blocked = [];
+
+        foreach (config('voc.canonical_products', []) as $phrase => $english) {
+            $english = Str::lower((string) $english);
+            $phrase = Str::lower((string) $phrase);
+
+            if ($english === $product) {
+                $aliases = array_map('strval', config('voc.catalog_aliases.'.$product, []));
+                if ($phrase !== $english && ! in_array($phrase, $aliases, true)) {
+                    $blocked[] = $phrase;
+                }
+
+                continue;
+            }
+
+            if (! $this->containsPhrase($original, $phrase) && ! $this->containsPhrase($original, $english)) {
+                $blocked[] = $phrase;
+                $blocked[] = $english;
+            }
+        }
+
+        $blocked = array_map(fn (string $term) => Str::lower($term), $blocked);
+
+        return array_values(array_unique(array_filter(
+            $keywords,
+            fn (string $term) => ! in_array(Str::lower($term), $blocked, true),
+        )));
     }
 
     /**

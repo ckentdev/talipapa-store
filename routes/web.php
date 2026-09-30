@@ -76,8 +76,6 @@ Route::middleware(['throttle:voice-assistant'])->group(function () {
         ->name('voice-assistant.process');
     Route::post('/voice-search/transcribe', [VoiceSearchController::class, 'transcribe'])
         ->name('voice-search.transcribe');
-    Route::post('/voice-search/speak', [VoiceSearchController::class, 'speak'])
-        ->name('voice-search.speak');
 });
 
 Route::prefix('register')->group(function () {

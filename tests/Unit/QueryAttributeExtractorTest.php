@@ -19,12 +19,13 @@ class QueryAttributeExtractorTest extends TestCase
     {
         $nlp = $this->extractor->extract('barato na tuyo');
 
-        $this->assertSame('tuyo', $nlp['product']);
+        $this->assertSame('soy sauce', $nlp['product']);
         $this->assertSame('cheap', $nlp['price_intent']);
-        $this->assertContains('tuyo', $nlp['keywords']);
-        $this->assertContains('dried fish', $nlp['keywords']);
+        $this->assertContains('soy sauce', $nlp['keywords']);
+        $this->assertNotContains('tuyo', $nlp['keywords']);
+        $this->assertNotContains('dried fish', $nlp['keywords']);
         $this->assertNotContains('barato', $nlp['keywords']);
-        $this->assertTrue($this->hasAttribute($nlp, 'product', 'tuyo', 'include'));
+        $this->assertTrue($this->hasAttribute($nlp, 'product', 'soy sauce', 'include'));
         $this->assertTrue($this->hasAttribute($nlp, 'price_intent', 'cheap', 'include'));
     }
 

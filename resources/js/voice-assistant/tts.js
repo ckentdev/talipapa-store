@@ -154,41 +154,6 @@ async function speakViaBrowser(text, language = 'English') {
     });
 }
 
-async function speakViaServer(text) {
-    if (! window.axios) {
-        return false;
-    }
-
-    stopCurrentAudio();
-    await unlockAudioOutput();
-
-    const { data } = await window.axios.post('/voice-search/speak', { text }, {
-        responseType: 'blob',
-        timeout: 30000,
-    });
-
-    const objectUrl = URL.createObjectURL(data);
-    const audio = new Audio(objectUrl);
-    audio._objectUrl = objectUrl;
-    currentAudio = audio;
-
-    await new Promise((resolve, reject) => {
-        audio.onended = () => {
-            stopCurrentAudio();
-            resolve();
-        };
-
-        audio.onerror = () => {
-            stopCurrentAudio();
-            reject(new Error('Audio playback failed.'));
-        };
-
-        audio.play().catch(reject);
-    });
-
-    return true;
-}
-
 export function preloadVoices() {
     if (! window.speechSynthesis) {
         return;
@@ -215,45 +180,21 @@ export function speakText(text, language = 'English', options = {}) {
     void speakTextAndWait(text, language, options);
 }
 
-export async function speakTextAndWait(text, language = 'English', options = {}) {
+export async function speakTextAndWait(text, language = 'English') {
     const cleaned = text?.trim();
 
     if (! cleaned) {
         return false;
     }
 
-    const { serverEnabled = false, preferServer = false } = options;
-
     stopSpeaking();
     await unlockAudioOutput();
 
-    if (serverEnabled && preferServer) {
-        try {
-            await speakViaServer(cleaned);
-            return true;
-        } catch {
-            // Fall back to browser speech below.
-        }
+    if (! window.speechSynthesis) {
+        return false;
     }
 
-    if (window.speechSynthesis) {
-        const browserSpoke = await speakViaBrowser(cleaned, language);
-
-        if (browserSpoke) {
-            return true;
-        }
-    }
-
-    if (serverEnabled) {
-        try {
-            await speakViaServer(cleaned);
-            return true;
-        } catch {
-            return false;
-        }
-    }
-
-    return false;
+    return speakViaBrowser(cleaned, language);
 }
 
 export function stopSpeaking() {

@@ -19,7 +19,7 @@ class VoiceNlpService
     public function extract(string $text, string $context = 'default'): array
     {
         $normalized = $this->normalizeForCache($text);
-        $cacheKey = 'voice_nlp_v2:'.hash('sha256', $normalized.'|'.$context);
+        $cacheKey = 'voice_nlp_v3:'.hash('sha256', $normalized.'|'.$context);
 
         return Cache::remember($cacheKey, config('voice-assistant.cache_ttl', 3600), function () use ($text, $context) {
             return $this->extractFromApi($text, $context);
@@ -53,15 +53,17 @@ Return ONLY valid JSON with keys:
 - units (string array, normalized: 1L, 1kg, 500ml, 300ml, pcs)
 - intent (one of: product_search, add_to_cart, set_payment_method, set_delivery_note, select_address, go_to_checkout_step, general_chat)
 - quantity (integer, default 1)
-- product (string or null, canonical: milk, tuyo, rice, ...)
+- product (string or null, English catalog name: milk, soy sauce, rice, ...)
 - brand (string or null, e.g. nestle)
 - dietary (string array: vegan, plant-based, non-cow, non-dairy)
 - price_intent (cheap, premium, or null). barato/mura/cheap → cheap
 - exclusions (string array). "dili sa baka" / "not from cow" / "hindi gatas ng baka" → ["cow"]
 - checkout (object or null): payment_method (cod|ewallet|card), notes (string), address_label (string), address_index (int), step (int 1-5), product_id (int)
 
+Map Bisaya and Tagalog grocery words to English product names. "tuyo" and "toyo" mean soy sauce, not dried fish. "bulad" and "daing" mean dried fish.
+
 Examples:
-- "barato na tuyo" → product tuyo, price_intent cheap
+- "barato na tuyo" → product "soy sauce", keywords ["soy sauce"], price_intent cheap
 - "gatas na dili sa baka" → product milk, exclusions ["cow"], dietary ["non-cow"]
 - "gatas na vegan 300 ml nestle" → product milk, brand nestle, dietary ["vegan","plant-based"], units ["300ml"], exclusions ["cow"]
 

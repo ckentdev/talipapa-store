@@ -49,7 +49,7 @@ class ProductSearchService
             $query->whereIn('store_profile_id', $nearbyStoreIds);
         }
 
-        return $this->scoreAndTake($this->candidateQuery($query, $terms), $terms, $normalizedUnits, $limit, $nlp);
+        return $this->scoreAndTake($query, $terms, $normalizedUnits, $limit, $nlp);
     }
 
     public function baseQuery(Request $request, ?array $nearbyStoreIds): Builder
@@ -69,7 +69,7 @@ class ProductSearchService
      */
     private function paginateScored(Builder $baseQuery, array $terms, array $units, int $perPage, int $page, array $queryParams, array $nlp = []): LengthAwarePaginator
     {
-        $scored = $this->scoreAndTake($this->candidateQuery(clone $baseQuery, $terms), $terms, $units, 500, $nlp);
+        $scored = $this->scoreAndTake(clone $baseQuery, $terms, $units, 500, $nlp);
         $total = $scored->count();
         $items = $scored->forPage($page, $perPage)->values();
 
@@ -83,22 +83,65 @@ class ProductSearchService
     }
 
     /**
+     * Match product titles first. Descriptions are long and mention ingredients
+     * in passing, so they are only used when no title or category matches.
+     *
      * @param  array<int, string>  $terms
+     * @return Collection<int, Product>
      */
-    private function candidateQuery(Builder $query, array $terms): Builder
+    private function loadCandidates(Builder $query, array $terms, array $nlp = []): Collection
     {
-        $terms = array_values(array_filter(array_unique($terms)));
+        $terms = array_values(array_unique(array_filter($terms)));
 
         if ($terms === []) {
-            return $query;
+            return $query->limit(200)->get();
         }
 
-        return $query->where(function (Builder $outer) use ($terms) {
+        $ordered = $this->orderCandidates($this->matchTerms(clone $query, $terms, false), $terms, $nlp);
+        $primary = $ordered->limit(200)->get();
+
+        if ($primary->isNotEmpty()) {
+            return $primary;
+        }
+
+        return $this->orderCandidates($this->matchTerms(clone $query, $terms, true), $terms, $nlp)
+            ->limit(80)
+            ->get();
+    }
+
+    /**
+     * @param  array<int, string>  $terms
+     * @param  array<string, mixed>  $nlp
+     */
+    private function orderCandidates(Builder $query, array $terms, array $nlp): Builder
+    {
+        $phrase = collect($terms)->sortByDesc(fn (string $term) => strlen($term))->first();
+
+        if (is_string($phrase) && $phrase !== '') {
+            $query->orderByRaw('CASE WHEN name LIKE ? THEN 0 ELSE 1 END', ['%'.$phrase.'%']);
+        }
+
+        if (($nlp['price_intent'] ?? null) === 'cheap') {
+            $query->orderBy('price');
+        }
+
+        return $query;
+    }
+
+    /**
+     * @param  array<int, string>  $terms
+     */
+    private function matchTerms(Builder $query, array $terms, bool $includeDescription): Builder
+    {
+        return $query->where(function (Builder $outer) use ($terms, $includeDescription) {
             foreach ($terms as $term) {
                 $like = '%'.$term.'%';
                 $outer->orWhere('name', 'like', $like)
-                    ->orWhere('description', 'like', $like)
                     ->orWhereHas('category', fn (Builder $cat) => $cat->where('name', 'like', $like));
+
+                if ($includeDescription) {
+                    $outer->orWhere('description', 'like', $like);
+                }
             }
         });
     }
@@ -111,7 +154,7 @@ class ProductSearchService
      */
     private function scoreAndTake(Builder $query, array $terms, array $units, int $limit, array $nlp = []): Collection
     {
-        $products = $query->get();
+        $products = $this->loadCandidates($query, $terms, $nlp);
 
         $scored = $products
             ->map(fn (Product $product) => [
@@ -243,17 +286,8 @@ class ProductSearchService
             return false;
         }
 
-        $haystack = Str::lower($product->name.' '.(string) $product->description);
-        $terms = array_merge(
-            [$canonical],
-            array_map('strval', config('voice-assistant.synonyms.'.$canonical, [])),
-        );
-
-        foreach (config('voc.canonical_products', []) as $phrase => $mapped) {
-            if (Str::lower((string) $mapped) === $canonical) {
-                $terms[] = (string) $phrase;
-            }
-        }
+        $haystack = Str::lower($product->name.' '.(string) $product->category?->name);
+        $terms = $this->englishMatchTerms($canonical);
 
         foreach (array_unique($terms) as $term) {
             $term = Str::lower(trim((string) $term));
@@ -377,7 +411,7 @@ class ProductSearchService
                 return false;
             }
 
-            return ! in_array($term, ['ml', 'kg', 'pcs', 'cow', 'baka'], true);
+            return ! in_array($term, ['ml', 'kg', 'pcs', 'cow', 'baka', 'liter', 'litro', 'liters', 'litres', 'kilo'], true);
         }));
     }
 
@@ -433,26 +467,96 @@ class ProductSearchService
     }
 
     /**
+     * @return array<int, string>
+     */
+    private function englishMatchTerms(string $canonical): array
+    {
+        $canonical = Str::lower(trim($canonical));
+        $terms = array_merge(
+            [$canonical],
+            array_map('strval', config('voice-assistant.synonyms.'.$canonical, [])),
+            array_map('strval', config('voc.catalog_aliases.'.$canonical, [])),
+        );
+
+        return array_values(array_unique(array_filter(array_map(
+            fn ($term) => Str::lower(trim((string) $term)),
+            $terms,
+        ))));
+    }
+
+    /**
+     * Replace Bisaya and Tagalog grocery words with the English catalog name
+     * before tokenizing, so "tuyo" searches "soy sauce" as one phrase.
+     *
      * @param  array<int, string>  $inputs
      * @return array<int, string>
      */
     public function expandTerms(array $inputs): array
     {
         $terms = [];
+        $map = config('voc.canonical_products', []);
+        $phrases = array_keys($map);
+        usort($phrases, fn (string $a, string $b) => strlen($b) <=> strlen($a));
 
         foreach ($inputs as $input) {
-            foreach ($this->tokenize((string) $input) as $token) {
-                $terms[] = $token;
-                $lower = Str::lower($token);
-                $synonyms = config('voice-assistant.synonyms.'.$lower, []);
+            $text = ' '.Str::lower((string) $input).' ';
 
-                foreach ($synonyms as $synonym) {
+            foreach ($phrases as $phrase) {
+                $pattern = '/(?<![\p{L}\p{N}])'.preg_quote($phrase, '/').'(?![\p{L}\p{N}])/u';
+
+                if (! preg_match($pattern, $text)) {
+                    continue;
+                }
+
+                $english = Str::lower((string) $map[$phrase]);
+                $terms[] = $english;
+
+                if ($this->keepSourceTerm($phrase, $english)) {
+                    $terms[] = $phrase;
+                }
+
+                foreach ($this->synonymsFor($english) as $synonym) {
+                    $terms[] = $synonym;
+                }
+
+                $text = (string) preg_replace($pattern, ' ', $text);
+            }
+
+            foreach ($this->tokenize($text) as $token) {
+                $terms[] = $token;
+
+                foreach ($this->synonymsFor($token) as $synonym) {
                     $terms[] = $synonym;
                 }
             }
         }
 
-        return array_values(array_unique(array_filter($terms, fn ($t) => strlen($t) >= 2)));
+        return array_values(array_unique(array_filter(
+            $terms,
+            fn ($term) => is_string($term) && strlen($term) >= 2,
+        )));
+    }
+
+    private function keepSourceTerm(string $phrase, string $english): bool
+    {
+        if ($phrase === $english) {
+            return true;
+        }
+
+        $aliases = array_map(
+            fn ($alias) => Str::lower((string) $alias),
+            config('voc.catalog_aliases.'.$english, []),
+        );
+
+        return in_array($phrase, $aliases, true);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function synonymsFor(string $term): array
+    {
+        return array_map('strval', config('voice-assistant.synonyms.'.Str::lower($term), []));
     }
 
     /**

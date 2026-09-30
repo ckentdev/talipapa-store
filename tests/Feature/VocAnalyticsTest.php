@@ -30,8 +30,8 @@ class VocAnalyticsTest extends TestCase
         Product::factory()->create([
             'store_profile_id' => $store->id,
             'category_id' => $category->id,
-            'name' => 'Tuyo (Dried Fish) 100g',
-            'description' => 'Budget dried herring',
+            'name' => 'Silver Swan Soy Sauce 200ml',
+            'description' => 'Everyday soy sauce',
             'price' => 35,
             'is_available' => true,
             'stock' => 8,
@@ -39,7 +39,7 @@ class VocAnalyticsTest extends TestCase
 
         $this->get(route('products.index', ['q' => 'barato na tuyo']))
             ->assertOk()
-            ->assertSee('Tuyo (Dried Fish) 100g');
+            ->assertSee('Silver Swan Soy Sauce 200ml');
 
         $this->assertDatabaseHas('voc_utterances', [
             'original_text' => 'barato na tuyo',
@@ -49,7 +49,7 @@ class VocAnalyticsTest extends TestCase
         $utterance = VocUtterance::query()->first();
         $this->assertNotNull($utterance);
         $this->assertTrue($utterance->attributes->contains(
-            fn ($attribute) => $attribute->type->value === 'product' && $attribute->value === 'tuyo'
+            fn ($attribute) => $attribute->type->value === 'product' && $attribute->value === 'soy sauce'
         ));
         $this->assertTrue($utterance->attributes->contains(
             fn ($attribute) => $attribute->type->value === 'price_intent' && $attribute->value === 'cheap'

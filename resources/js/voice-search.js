@@ -4,14 +4,11 @@ import {
     openVoicePermissionModal,
     playVoiceFeedback,
     releaseVoiceMicStream,
-    unlockAudioOutput,
 } from './media-permissions';
 import { createVoiceRecorder } from './voice-assistant/recorder';
-import { speakTextAndWait, stopSpeaking, preloadVoices, primeSpeechEngine } from './voice-assistant/tts';
 import {
     buildHeardTranscriptSpeech,
     buildOpeningProductsSpeech,
-    buildProductsCheckoutHintSpeech,
     buildProductsSearchSpeech,
     buildSearchingSpeech,
     friendlyVoiceSearchError,
@@ -20,7 +17,6 @@ import {
 import { voiceFilename } from './voice-audio';
 import {
     consumeVoiceSearchResultsLanding,
-    getProductsSearchTotal,
     markVoiceSearchResultsLanding,
     searchProductsNow,
 } from './products-search';
@@ -29,7 +25,6 @@ let activeRecognition = null;
 let activeRecorder = null;
 let voiceSearchCancelled = false;
 let activeVoiceControl = null;
-let lastSpokenModalMessage = '';
 let lastModalDisplayMessage = '';
 
 const SILENCE_STOP_MS = 1600;
@@ -38,7 +33,6 @@ const MIN_RECORDING_MS = 1200;
 const MIN_SPEECH_MS = 450;
 
 export function initVoiceSearch() {
-    preloadVoices();
     initVoicePermissionModal();
     initVoiceListeningModal();
 
@@ -111,35 +105,6 @@ function resolveSpeechLanguage() {
     }
 
     return lang.includes('-') ? lang : `${lang}-${lang.toUpperCase()}`;
-}
-
-function resolveTtsLanguage() {
-    const lang = resolveSpeechLanguage();
-
-    if (lang.startsWith('fil') || lang.startsWith('tl')) {
-        return 'Tagalog';
-    }
-
-    return 'English';
-}
-
-function canUseModalSpeech() {
-    return typeof window.speechSynthesis !== 'undefined' || canUseServerVoiceSearch();
-}
-
-function voiceSearchSpeechOptions(overrides = {}) {
-    const serverEnabled = canUseServerVoiceSearch();
-
-    return {
-        serverEnabled,
-        preferServer: serverEnabled,
-        ...overrides,
-    };
-}
-
-function primeVoiceSearchAudio() {
-    primeSpeechEngine();
-    void unlockAudioOutput();
 }
 
 async function waitForAudioHandoff(ms = 150) {
@@ -217,7 +182,6 @@ function handleModalClose() {
         return;
     }
 
-    stopSpeaking();
     closeListeningModal();
 }
 
@@ -396,45 +360,8 @@ function createVoiceLevelHandlers(recorderControl) {
     };
 }
 
-function shouldSpeakModal() {
-    return canUseModalSpeech();
-}
-
-function plainSpeechText(message) {
-    return message
-        .replace(/[“”"]/g, '')
-        .replace(/…/g, '.')
-        .replace(/—/g, ', ')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
-async function speakModalMessage(message, { force = false } = {}) {
-    const spoken = plainSpeechText(message);
-
-    if (! spoken || (! force && spoken === lastSpokenModalMessage)) {
-        return false;
-    }
-
-    if (! canUseModalSpeech()) {
-        return false;
-    }
-
-    lastSpokenModalMessage = spoken;
-    await unlockAudioOutput();
-
-    return speakTextAndWait(spoken, resolveTtsLanguage(), voiceSearchSpeechOptions());
-}
-
-async function announceModalMessage(message, { force = false, awaitSpeech = true, mode = 'listening' } = {}) {
+function announceModalMessage(message, { mode = 'listening' } = {}) {
     setModalAnnouncement(message, mode);
-
-    if (! awaitSpeech) {
-        void speakModalMessage(message, { force });
-        return;
-    }
-
-    await speakModalMessage(message, { force });
 }
 
 async function openModalAndWelcome(mode = 'listening') {
@@ -444,9 +371,7 @@ async function openModalAndWelcome(mode = 'listening') {
 }
 
 function resetModalSpeech() {
-    lastSpokenModalMessage = '';
     lastModalDisplayMessage = '';
-    stopSpeaking();
 }
 
 function cancelVoiceSearch() {
@@ -470,7 +395,6 @@ function handleVoiceSearchClick(button) {
         return;
     }
 
-    primeVoiceSearchAudio();
     void beginVoiceSearch(button);
 }
 
@@ -484,7 +408,6 @@ function handleVoiceSearchFabClick(button) {
         return;
     }
 
-    primeVoiceSearchAudio();
     void beginVoiceSearchFab(button);
 }
 
@@ -567,47 +490,8 @@ function findSearchContext(button) {
     return { form, input, status };
 }
 
-async function announceVoiceSearchResultsLanding() {
-    if (! document.querySelector('[data-products-page]')) {
-        return;
-    }
-
-    if (! consumeVoiceSearchResultsLanding()) {
-        return;
-    }
-
-    if (! canUseModalSpeech()) {
-        return;
-    }
-
-    primeVoiceSearchAudio();
-
-    const query = new URLSearchParams(window.location.search).get('q')?.trim() ?? '';
-    const total = getProductsSearchTotal();
-    const resultsMessage = buildProductsSearchSpeech(query, total);
-
-    openListeningModal('processing', resultsMessage);
-    setModalActionsVisible(false);
-    await announceModalMessage(resultsMessage, { force: true, mode: 'results' });
-
-    if (total > 0) {
-        await announceModalMessage(buildProductsCheckoutHintSpeech(), { force: true, mode: 'results' });
-    }
-
-    window.setTimeout(() => {
-        closeListeningModal();
-        document.body.classList.remove('overflow-hidden');
-    }, 800);
-}
-
-async function speakSearchResultsFollowUp(query, total) {
-    const resultsMessage = buildProductsSearchSpeech(query, total);
-
-    await announceModalMessage(resultsMessage, { force: true, mode: 'results' });
-
-    if (total > 0) {
-        await announceModalMessage(buildProductsCheckoutHintSpeech(), { force: true, mode: 'results' });
-    }
+function announceVoiceSearchResultsLanding() {
+    consumeVoiceSearchResultsLanding();
 }
 
 async function applyVoiceSearchTranscript(form, input, status, transcript) {
@@ -618,8 +502,6 @@ async function applyVoiceSearchTranscript(form, input, status, transcript) {
     const searchTotal = await searchProductsNow(transcript);
 
     if (searchTotal !== null) {
-        await speakSearchResultsFollowUp(transcript, searchTotal);
-
         if (status) {
             status.textContent = buildProductsSearchSpeech(transcript, searchTotal);
         }
@@ -794,13 +676,13 @@ async function startServerVoiceSearch(button) {
         const transcript = await transcribeVoiceBlob(blob);
         await announceModalMessage(buildHeardTranscriptSpeech(transcript), { force: true, mode: 'processing' });
         await applyVoiceSearchTranscript(form, input, status, transcript);
-        finishVoiceSearch(button, input, status, { delayMs: 1200 });
+        finishVoiceSearch(button, input, status, { delayMs: 250 });
     } catch (error) {
         if (! voiceSearchCancelled) {
             const rawMessage = error?.response?.data?.message ?? error?.message ?? voiceSearchCopy.errors.failed;
             const message = friendlyVoiceSearchError(rawMessage);
             notify(rawMessage, 'error');
-            await announceModalMessage(message, { force: true, mode: 'processing' });
+            announceModalMessage(message, { mode: 'processing' });
         }
 
         if (status) {
@@ -824,13 +706,13 @@ async function startServerVoiceSearchFab(button) {
         const { form, input, status } = findSearchContext(button);
         await announceModalMessage(buildHeardTranscriptSpeech(transcript), { force: true, mode: 'processing' });
         await applyVoiceSearchTranscript(form, input, status, transcript);
-        finishVoiceSearch(button, input, status, { delayMs: 1200 });
+        finishVoiceSearch(button, input, status, { delayMs: 250 });
     } catch (error) {
         if (! voiceSearchCancelled) {
             const rawMessage = error?.response?.data?.message ?? error?.message ?? voiceSearchCopy.errors.failed;
             const message = friendlyVoiceSearchError(rawMessage);
             notify(rawMessage, 'error');
-            await announceModalMessage(message, { force: true, mode: 'processing' });
+            announceModalMessage(message, { mode: 'processing' });
         }
 
         finishVoiceSearch(button, null, null);

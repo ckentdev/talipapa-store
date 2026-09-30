@@ -2,18 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\VoiceAssistant\TextToSpeechService;
 use App\Services\VoiceAssistant\TranscriptionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use RuntimeException;
 
 class VoiceSearchController extends Controller
 {
     public function __construct(
         private readonly TranscriptionService $transcriptionService,
-        private readonly TextToSpeechService $textToSpeechService,
     ) {}
 
     public function transcribe(Request $request): JsonResponse
@@ -41,31 +38,5 @@ class VoiceSearchController extends Controller
         }
 
         return response()->json(['transcript' => $transcript]);
-    }
-
-    public function speak(Request $request): Response|JsonResponse
-    {
-        if (! config('voice-assistant.search_enabled')) {
-            return response()->json(['message' => 'Voice search is disabled.'], 503);
-        }
-
-        if (empty(config('voice-assistant.openai_api_key'))) {
-            return response()->json(['message' => 'Voice search is not configured.'], 503);
-        }
-
-        $validated = $request->validate([
-            'text' => ['required', 'string', 'max:500'],
-        ]);
-
-        try {
-            $audio = $this->textToSpeechService->synthesize($validated['text']);
-        } catch (RuntimeException $e) {
-            return response()->json(['message' => $e->getMessage()], 503);
-        }
-
-        return response($audio, 200, [
-            'Content-Type' => 'audio/mpeg',
-            'Cache-Control' => 'no-store',
-        ]);
     }
 }

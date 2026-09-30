@@ -87,33 +87,6 @@ class VoiceSearchTest extends TestCase
             ->assertJsonPath('transcript', 'coca cola');
     }
 
-    public function test_speak_endpoint_returns_audio(): void
-    {
-        $mock = Mockery::mock(\App\Services\VoiceAssistant\TextToSpeechService::class);
-        $mock->shouldReceive('synthesize')
-            ->once()
-            ->with('Hello there')
-            ->andReturn('fake-audio-bytes');
-
-        $this->instance(\App\Services\VoiceAssistant\TextToSpeechService::class, $mock);
-
-        $this->post(route('voice-search.speak'), [
-            'text' => 'Hello there',
-        ])
-            ->assertOk()
-            ->assertHeader('Content-Type', 'audio/mpeg')
-            ->assertContent('fake-audio-bytes');
-    }
-
-    public function test_speak_endpoint_returns_disabled_when_search_disabled(): void
-    {
-        config(['voice-assistant.search_enabled' => false]);
-
-        $this->post(route('voice-search.speak'), [
-            'text' => 'Hello there',
-        ])->assertStatus(503);
-    }
-
     protected function tearDown(): void
     {
         Mockery::close();

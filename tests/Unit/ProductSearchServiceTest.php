@@ -85,17 +85,17 @@ class ProductSearchServiceTest extends TestCase
         $this->assertContains('1L', $units);
     }
 
-    public function test_cheap_tuyo_ranks_lower_priced_dried_fish(): void
+    public function test_cheap_tuyo_ranks_lower_priced_soy_sauce(): void
     {
         $store = StoreProfile::factory()->approved()->create();
-        $category = Category::factory()->create(['name' => 'Meat & Seafood']);
+        $category = Category::factory()->create(['name' => 'Condiments']);
         $extractor = app(QueryAttributeExtractor::class);
 
         Product::factory()->create([
             'store_profile_id' => $store->id,
             'category_id' => $category->id,
-            'name' => 'Premium Tuyo 250g',
-            'description' => 'Large dried fish',
+            'name' => 'Premium Soy Sauce 1L',
+            'description' => 'Large bottle of soy sauce',
             'price' => 95,
             'is_available' => true,
             'stock' => 10,
@@ -104,9 +104,19 @@ class ProductSearchServiceTest extends TestCase
         Product::factory()->create([
             'store_profile_id' => $store->id,
             'category_id' => $category->id,
-            'name' => 'Tuyo (Dried Fish) 100g',
-            'description' => 'Budget dried herring',
-            'price' => 35,
+            'name' => 'Silver Swan Soy Sauce 200ml',
+            'description' => 'Everyday soy sauce',
+            'price' => 25,
+            'is_available' => true,
+            'stock' => 10,
+        ]);
+
+        Product::factory()->create([
+            'store_profile_id' => $store->id,
+            'category_id' => $category->id,
+            'name' => 'Lucky Me Pancit Canton',
+            'description' => 'Seasoning packet includes soy sauce and oil.',
+            'price' => 15,
             'is_available' => true,
             'stock' => 10,
         ]);
@@ -115,7 +125,8 @@ class ProductSearchServiceTest extends TestCase
         $results = $this->service->searchFromNlp($nlp);
 
         $this->assertNotEmpty($results);
-        $this->assertSame('Tuyo (Dried Fish) 100g', $results->first()->name);
+        $this->assertSame('Silver Swan Soy Sauce 200ml', $results->first()->name);
+        $this->assertFalse($results->pluck('name')->contains('Lucky Me Pancit Canton'));
     }
 
     public function test_non_cow_milk_excludes_fresh_cow_milk(): void
